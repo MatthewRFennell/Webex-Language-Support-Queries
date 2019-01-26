@@ -36,13 +36,13 @@ for msg in messages:
         #Attempt to set the language
         newLang = ascii.split()
         if len(newLang) > 1:
-            confidence, detectedLang = get_shortcode_of(newLang[1])
-            if confidence == 1:
-                target = detectedLang
+            confidence, detectedLang, shortcode = get_shortcode_of(newLang[1])
+            if confidence == 100:
+                target = shortcode
                 print("Language set to {}".format(newLang[1]))
-            elif confidence > 0.9:
-                target = detectedLang
-                print("Language set to {} (Auto-recognised)".format())
+            elif confidence > 70:
+                target = shortcode
+                print("Language set to {} (Auto-recognised with confidence level {})".format(detectedLang, confidence))
             else:
                 print("We did not understand {}, did you mean {}?".format(newLang[1], detectedLang))
     elif ascii.startswith("!noTranslate"):
