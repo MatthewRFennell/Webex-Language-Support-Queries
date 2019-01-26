@@ -9,6 +9,9 @@ from get_shortcode import get_shortcode_of
 from google.cloud import translate
 from flask import Flask, request
 from webexteamssdk import WebexTeamsAPI, Webhook
+from helpers.spark_helper import (find_webhook_by_name,
+                     delete_webhook, create_webhook)
+import re
 
 # Instantiates a client
 translate_client = translate.Client()
@@ -20,6 +23,8 @@ flask_app = Flask(__name__)
 @flask_app.route('/teamswebhook', methods=['POST'])
 def teamsWebHook():
     global target
+    global noTranslate
+    format="text"
     print("Got a request")
     json_data = request.json
 
@@ -65,9 +70,17 @@ def teamsWebHook():
                         print(output)
             elif lower.startswith("!notranslate"):
                 #Add word to ignored list
+                words = ""
                 for word in lower.split():
-                    if word != "!notranslate":
+                    if word != "!notranslate" and word not in noTranslate:
                         noTranslate.append(word)
+                output = "The following words are now not translated: {}".format(noTranslate)
+            elif lower.startswith("!dotranslate"):
+                words = ""
+                for word in lower.split():
+                    if word != "!notranslate" and word in noTranslate:
+                        noTranslate.remove(word)
+                output = "The following words are now not translated: {}".format(noTranslate)
             else:
                 #Translate normally
                 result = translate_client.detect_language(text)
@@ -78,14 +91,18 @@ def teamsWebHook():
                     for word in text.split():
                         if word.lower() in noTranslate:
                             input += "<span translate=\"no\">"+word+"</span> "
+                            format="html"
                         else:
                             input += word + " "
-                    output = translate_client.translate(input, target)['translatedText']
+                    output = translate_client.translate(input, target, format_=format)['translatedText']
+                    if format == "html":
+                        regex = re.compile("<span translate ?= ?\"no\"> ?(\w+) ?<\/ ?span>")
+                        output = regex.sub("\\1", output)
                 else:
                     output = "Sorry, the sentence was not recognised as a language"
             print(output)
             teams_api.messages.create(room.id, text=output)
-        return 'OK'
+    return 'OK'
 
 
 def get_ngrok_url():
@@ -108,7 +125,15 @@ time.sleep(2)
 
 url = get_ngrok_url()
 
-data = {"name": "New messages in ICHack room",
+# Define the name of webhook
+webhook_name = "New messages in ICHack room"
+
+# Find any existing webhooks with this name and if this already exists then delete it
+dev_webhook = find_webhook_by_name(teams_api, webhook_name)
+if dev_webhook:
+    delete_webhook(teams_api, dev_webhook)
+
+data = {"name": webhook_name,
         "targetUrl": url + "/teamswebhook",
         "resource": "messages",
         "event": "created", "filter":
@@ -125,4 +150,5 @@ if r.status_code != 200:
     print("Failed to create webhook")
     quit()
 
+teams_api.messages.create("Y2lzY29zcGFyazovL3VzL1JPT00vODNlNDAzOTAtMjE2Ni0xMWU5LWJmNTYtYTlhY2I2NTU0Y2Ji", text="Started up translating bot. Default language: English")
 flask_app.run(host='0.0.0.0', port=5005)
