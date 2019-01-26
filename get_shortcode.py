@@ -11,8 +11,6 @@ def get_shortcode_of(language):
 		for row in reader:
 			fuzzy[row[0]] = fuzz.ratio(row[0], language)
 			if language == row[0]:
-				print(row[1])
-				return true
+				return true, row[1]
 		# At this point we haven't found an exact match
-		print(max(fuzzy.items(), key=operator.itemgetter(1))[0])
-		return false
+		return false, max(fuzzy.items(), key=operator.itemgetter(1))[0]
