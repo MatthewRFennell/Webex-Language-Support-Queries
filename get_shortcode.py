@@ -11,8 +11,14 @@ def get_shortcode_of(language):
 		for row in reader:
 			fuzzy[row[0]] = fuzz.ratio(row[0], language)
 			if language == row[0]:
-				return 1, row[0], row[1]
+				return 100, row[0], row[1]
 		# At this point we haven't found an exact match
 		lan = max(fuzzy.items(), key=operator.itemgetter(1))
-		print(fuzzy.values())
-		return max(fuzzy.values()), lan[0], lan[1]
+		return max(fuzzy.values()), lan[0], shortcode(lan[0])
+
+def shortcode(full):
+	with open('languages.csv', mode='r') as csvFile:
+		reader = csv.reader(csvFile)
+		for row in reader:
+			if full == row[0]:
+				return row[1]

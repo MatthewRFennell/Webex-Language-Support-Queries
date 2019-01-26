@@ -30,9 +30,12 @@ for msg in cont["items"]:
         if len(txt) < 100:
           messages.append(txt)
 
+messages.reverse()
+
 for msg in messages:
     ascii = msg.encode('ascii', 'ignore')
-    if ascii.startswith("!setLanguage"):
+    lower = ascii.lower()
+    if lower.startswith("!setlanguage"):
         #Attempt to set the language
         newLang = ascii.split()
         if len(newLang) > 1:
@@ -45,10 +48,10 @@ for msg in messages:
                 print("Language set to {} (Auto-recognised with confidence level {})".format(detectedLang, confidence))
             else:
                 print("We did not understand {}, did you mean {}?".format(newLang[1], detectedLang))
-    elif ascii.startswith("!noTranslate"):
+    elif lower.startswith("!notranslate"):
         #Add word to ignored list
-        for word in ascii.split():
-            if word != "!noTranslate":
+        for word in lower.split():
+            if word != "!notranslate":
                 noTranslate.append(word)
     else:
         toTranslate.append(msg)
@@ -60,10 +63,10 @@ for msg in toTranslate:
         print(u"Language of {} detected as {} with confidence {}".format(msg, result['language'], result['confidence']))
         input = ""
         for word in msg.split():
-            if word in noTranslate:
-                input += "<span translate=\"no\">"+word+"</span>"
+            if word.lower() in noTranslate:
+                input += "<span translate=\"no\">"+word+"</span> "
             else:
-                input += word
+                input += word + " "
         output.append(input)
 
 if len(output) > 0:
