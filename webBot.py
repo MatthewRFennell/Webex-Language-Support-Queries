@@ -35,7 +35,8 @@ for msg in messages:
     if ascii.startswith("!setLanguage"):
         #Attempt to set the language
         newLang = ascii.split()
-        if len(newLang) > 1 and get_shortcode_of(newLang[1]):
+        detectedLang = get_shortcode_of(newLang[1])
+        if len(newLang) > 1 and :
             target = get_shortcode_of(newLang[1])
     elif ascii.startswith("!noTranslate"):
         #Add word to ignored list
@@ -64,5 +65,3 @@ if len(output) > 0:
 if len(result) > 0:
     for translation in result:
         print(translation['translatedText'])
-
-    
