@@ -101,7 +101,8 @@ def teamsWebHook():
                 else:
                     output = "Sorry, the sentence was not recognised as a language"
             print(output)
-            teams_api.messages.create(room.id, text=output)
+            
+            teams_api.messages.create(room.id, text=(person.displayName + "'s message in " + target + "is " + output))
     return 'OK'
 
 
@@ -111,12 +112,7 @@ def get_ngrok_url():
 
     with open('tunnels.json') as data_file:
         datajson = json.load(data_file)
-    
-    msg = "ngrok URL's: \n"
-    for i in datajson['tunnels']:
-        msg = msg + i['public_url'] + '\n'
 
-    print(datajson['tunnels'][0]['public_url'])
     return datajson['tunnels'][0]['public_url']
 
 os.system("ngrok http 5005 > /dev/null &")
