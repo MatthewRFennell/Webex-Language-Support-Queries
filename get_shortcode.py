@@ -4,5 +4,4 @@ def get_shortcode_of(language):
 		reader = csv.reader(csvFile)
 		for row in reader:
 			if language == row[0]:
-				print(row[1])
 				return row[1]
