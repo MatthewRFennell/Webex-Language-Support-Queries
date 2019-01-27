@@ -31,6 +31,7 @@ roomLanguages = {}
 roomFilters = {}
 roomVoices = {}
 
+roomWolfram = {}
 wolframConvos = {}
 
 # Create the webook API data
@@ -71,6 +72,7 @@ def teamsWebHook():
         roomFilters[room.id] = []
         roomFollows[room.id] = {}
         roomVoices[room.id] = True
+        roomWolfram[room.id] = True
 
     has_translation = False
     has_voice = False
@@ -124,7 +126,9 @@ def teamsWebHook():
                 output += "!setlanguage language - Set the translation target to the language. Minor spelling errors are corrected automatically\n"
                 output += "!follow language - Follow a group chat in a specific language (excludes your messages).\n"
                 output += "!voice - Allow attaching of voice pronounciation for supported languages.\n"
-                output += "!novoice - Disable attaching of voice pronounciation for supported languages."
+                output += "!novoice - Disable attaching of voice pronounciation for supported languages.\n"
+                output += "!nowolfram - Disable attempted parsing of messages by wolfram API"
+                output += "!wolfram - Enable attempted parsing of messages by wolfram API"
             elif lower.startswith("!follow"):
                 if not group:
                     output = "You cannot follow a direct chat!"
@@ -158,6 +162,18 @@ def teamsWebHook():
                 else:
                     roomVoices[room.id] = False
                     output = "Voice attachments are disabled for this room"
+            elif lower.startswith("!wolfram"):
+                if roomWolfram[room.id]:
+                    output = "Wolfram parsing is already enabled!"
+                else:
+                    roomWolfram[room.id] = True
+                    output = "Wolfram parsing is enabled for supported languages."
+            elif lower.startswith("!nowolfram"):
+                if not roomWolfram[room.id]:
+                    output = "Wolfram parsing is already disabled!"
+                else:
+                    roomWolfram[room.id] = False
+                    output = "Wolfram parsing is disabled for this room"
             elif lower.startswith("!summarize"):
                 msgs = list(teams_api.messages.list(room.id))
                 string = []
@@ -180,27 +196,14 @@ def teamsWebHook():
                 print("Detected is " + language)
                 print("Target is " + target)
                 print("Confidence {}".format(result['confidence']))
-                wolfram_result = ""
-                english = ""
-                attempt_again = language != "en" and language != "und" and result['confidence'] > 0.7
-                if attempt_again:
-                    english = translate_client.translate(text, "en", format_="text")['translatedText']
                 has_result = False
-                if message.personId not in wolframConvos:
-                    wolfram_result = readwolfram.ask(text)
-                    if "result" in wolfram_result:
-                        has_result = True
-                        wolframConvos[message.personId] = wolfram_result
-                    elif attempt_again:
-                        wolfram_result = readwolfram.ask(english)
-                        if "result" in wolfram_result:
-                            has_result = True
-                            wolframConvos[message.personId] = wolfram_result
-                else:
-                    wolfram_result = readwolfram.askContinuingConvo(text, wolframConvos[message.personId])
-                    if "result" not in wolfram_result:
-                        del wolframConvos[message.personId]
-                        # Try again
+                if roomWolfram[room.id]:
+                    wolfram_result = ""
+                    english = ""
+                    attempt_again =  language != "en" and language != "und" and result['confidence'] > 0.7
+                    if attempt_again:
+                        english = translate_client.translate(text, "en", format_="text")['translatedText']
+                    if message.personId not in wolframConvos:
                         wolfram_result = readwolfram.ask(text)
                         if "result" in wolfram_result:
                             has_result = True
@@ -211,16 +214,30 @@ def teamsWebHook():
                                 has_result = True
                                 wolframConvos[message.personId] = wolfram_result
                     else:
-                        # Refresh the answer
-                        wolframConvos[message.personId] = wolfram_result
-                        has_result = True
-                print(wolfram_result)
-                if has_result:
-                    if attempt_again:
-                        back_translated = translate_client.translate(wolframConvos[message.personId]["result"], language, format_="text")['translatedText']
-                        teams_api.messages.create(room.id, text=u"Wolfram Alpha suggests the following:\n{}\nOriginal:({})".format( back_translated, wolframConvos[message.personId]["result"]))
-                    else:
-                        teams_api.messages.create(room.id, text=u"{}".format(wolframConvos[message.personId]["result"]))
+                        wolfram_result = readwolfram.askContinuingConvo(text, wolframConvos[message.personId])
+                        if "result" not in wolfram_result:
+                            del wolframConvos[message.personId]
+                            # Try again
+                            wolfram_result = readwolfram.ask(text)
+                            if "result" in wolfram_result:
+                                has_result = True
+                                wolframConvos[message.personId] = wolfram_result
+                            elif attempt_again:
+                                wolfram_result = readwolfram.ask(english)
+                                if "result" in wolfram_result:
+                                    has_result = True
+                                    wolframConvos[message.personId] = wolfram_result
+                        else:
+                            # Refresh the answer
+                            wolframConvos[message.personId] = wolfram_result
+                            has_result = True
+                    print(wolfram_result)
+                    if has_result:
+                        if attempt_again:
+                            back_translated = translate_client.translate(wolframConvos[message.personId]["result"], language, format_="text")['translatedText']
+                            teams_api.messages.create(room.id, text=u"Wolfram Alpha suggests the following:\n{}\nOriginal:({})".format( back_translated, wolframConvos[message.personId]["result"]))
+                        else:
+                            teams_api.messages.create(room.id, text=u"Wolfram Alpha suggests the following:\n{}".format(wolframConvos[message.personId]["result"]))
                 if language != "und" and result['confidence'] > 0.7:
                     has_translation = True
                 elif not has_result:
