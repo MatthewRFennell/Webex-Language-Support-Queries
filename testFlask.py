@@ -13,6 +13,9 @@ from webexteamssdk import WebexTeamsAPI, Webhook
 from helpers.spark_helper import (find_webhook_by_name,
                      delete_webhook, create_webhook)
 import re
+import readwolfram
+
+convoId = ""
 
 # Instantiates google API clients
 translate_client = translate.Client()
@@ -144,6 +147,16 @@ def teamsWebHook():
                     roomVoices[room.id] = False
                     output = "Voice attachments are disabled for this room"
             else:
+                # Try and submit the query to wolfram alpha
+         	result = ""
+                global convoId
+         	if convoId == "":
+         		convoId, result = readwolfram.ask(text)
+         	else:
+                        print(convoId)
+                        print(text)
+         		convoId, result = readwolfram.askContinuingConvo(convoId, text)
+                print(result)
                 #Translate normally
                 result = translate_client.detect_language(text)
                 language = result['language']

@@ -1,6 +1,7 @@
 import urllib2
 import httplib
 import json
+import read
 from get_shortcode import get_shortcode_of
 from google.cloud import translate
 
