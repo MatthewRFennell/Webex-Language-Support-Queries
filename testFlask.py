@@ -17,8 +17,6 @@ import readwolfram
 from summa import summarizer
 from pprint import pprint
 
-convoId = ""
-
 # Instantiates google API clients
 translate_client = translate.Client()
 voice_client = texttospeech.TextToSpeechClient()
@@ -32,6 +30,8 @@ roomLanguages = {}
 roomFilters = {}
 roomVoices = {}
 
+wolframConvos = {}
+
 # Create the webook API data
 teams_api = WebexTeamsAPI(access_token="YmQ1OTY0MDgtNmE1My00NzA2LWI2MDEtNWNjNjYxNDU3M2M4OWRiM2ExM2MtZjg2_PF84_consumer")
 flask_app = Flask(__name__)
@@ -42,7 +42,6 @@ def teamsWebHook():
     global roomLanguages
     global roomFilters
     global roomVoices
-    global convoId
     format="text"
     json_data = request.json
 
@@ -71,7 +70,7 @@ def teamsWebHook():
         # Message was sent by the bot, do not respond.
         # At the moment there is no way to filter this out, there will be in the future
         me = teams_api.people.me()
-        print("Message sent by {} of type {} from room {}.\n Content is {}".format(person.displayName, room.type, room.id, text))
+        print(u"Message sent by {} of type {} from room {}.\n Content is {}".format(person.displayName, room.type, room.id, text))
         if message.personId == me.id:
             return 'OK'
         else:
@@ -158,23 +157,59 @@ def teamsWebHook():
                 stringstring = ''.join(string)
                 print(summarizer.summarize(stringstring, words=50))
             else:
-                # Try and submit the query to wolfram alpha
-                result = ""
-                if convoId == "":
-                    convoId, result = readwolfram.ask(text)
-                else:
-                    convoId, result = readwolfram.askContinuingConvo(convoId, text)
                 #Translate normally
                 result = translate_client.detect_language(text)
                 language = result['language']
                 target = roomLanguages[room.id][0]
                 fullTarget = roomLanguages[room.id][1]
-                print(language)
+                print("Detected is " + language)
+                print("Target is " + target)
                 print("Confidence {}".format(result['confidence']))
+                wolfram_result = ""
+                english = ""
+                attempt_again = language != "en" and language != "und" and result['confidence'] > 0.7
+                if attempt_again:
+                    english = translate_client.translate(text, "en", format_="text")['translatedText']
+                has_result = False
+                if message.personId not in wolframConvos:
+                    wolfram_result = readwolfram.ask(text)
+                    if "result" in wolfram_result:
+                        has_result = True
+                        wolframConvos[message.personId] = wolfram_result
+                    elif attempt_again:
+                        wolfram_result = readwolfram.ask(english)
+                        if "result" in wolfram_result:
+                            has_result = True
+                            wolframConvos[message.personId] = wolfram_result
+                else:
+                    wolfram_result = readwolfram.askContinuingConvo(text, wolframConvos[message.personId])
+                    if "result" not in wolfram_result:
+                        del wolframConvos[message.personId]
+                        # Try again
+                        wolfram_result = readwolfram.ask(text)
+                        if "result" in wolfram_result:
+                            has_result = True
+                            wolframConvos[message.personId] = wolfram_result
+                        elif attempt_again:
+                            wolfram_result = readwolfram.ask(english)
+                            if "result" in wolfram_result:
+                                has_result = True
+                                wolframConvos[message.personId] = wolfram_result
+                    else:
+                        # Refresh the answer
+                        wolframConvos[message.personId] = wolfram_result
+                        has_result = True
+                print(wolfram_result)
+                if has_result:
+                    if attempt_again:
+                        back_translated = translate_client.translate(wolframConvos[message.personId]["result"], language, format_="text")['translatedText']
+                        teams_api.messages.create(room.id, text=u"Wolfram Alpha suggests the following:\n{}\nOriginal:({})".format( back_translated, wolframConvos[message.personId]["result"]))
+                    else:
+                        teams_api.messages.create(room.id, text=u"Wolfram Alpha suggests the following:\n{}".format(wolframConvos[message.personId]["result"]))
                 if language != "und" and result['confidence'] > 0.7:
                     has_translation = True
-                else:
-                    output = "Sorry, could not recognise the language of {} with enough certainty. Maybe it is too short?".format(text)
+                elif not has_result:
+                    output = u"Sorry, could not recognise the language of {} with enough certainty. Maybe it is too short?".format(text)
                 if language != target and has_translation:
                     print(u"Language of {} detected as {} with confidence {}".format(text, result['language'], result['confidence']))
                     input = ""
