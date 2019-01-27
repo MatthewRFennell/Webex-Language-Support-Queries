@@ -6,7 +6,8 @@ import requests
 import time
 import os
 from get_shortcode import get_shortcode_of
-from google.cloud import translate
+from get_voices import get_voice_of
+from google.cloud import translate, texttospeech
 from flask import Flask, request
 from webexteamssdk import WebexTeamsAPI, Webhook
 from helpers.spark_helper import (find_webhook_by_name,
@@ -15,14 +16,17 @@ import re
 
 # Instantiates a client
 translate_client = translate.Client()
+voice_client = texttospeech.TextToSpeechClient()
 noTranslate=[]
 target='en'
+fullTarget='English'
 teams_api = WebexTeamsAPI(access_token="MmViOWRjNDMtZDM4MC00OWQ4LWE3ZGQtNDExZDQ2NjA0YjU4Zjc5MTU3NDYtMGM3_PF84_consumer")
 flask_app = Flask(__name__)
 
 @flask_app.route('/teamswebhook', methods=['POST'])
 def teamsWebHook():
     global target
+    global fullTarget
     global noTranslate
     format="text"
     print("Got a request")
@@ -38,6 +42,7 @@ def teamsWebHook():
     person = teams_api.people.get(message.personId)
     email = person.emails[0]
 
+    has_voice = False
     text = message.text
     if text:
         # Message was sent by the bot, do not respond.
@@ -59,10 +64,12 @@ def teamsWebHook():
                     confidence, detectedLang, shortcode = get_shortcode_of(newLang[1])
                     if confidence == 100:
                         target = shortcode
+                        fullTarget = detectedLang
                         output = "Language set to {}".format(newLang[1])
                         print(output)
                     elif confidence > 70:
                         target = shortcode
+                        fullTarget = detectedLang
                         output = "Language set to {} (Auto-recognised with confidence level {})".format(detectedLang, confidence)
                         print(output)
                     else:
@@ -98,11 +105,27 @@ def teamsWebHook():
                     if format == "html":
                         regex = re.compile("<span translate ?= ?\"no\"> ?(\w+) ?<\/ ?span>")
                         output = regex.sub("\\1", output)
+                    if get_voice_of(target):
+                        #Get the voice file
+                        voice_lang, voice_type, voice_gender = get_voice_of(target)
+                        voice_input = texttospeech.types.SynthesisInput(text=output)
+                        voice = texttospeech.types.VoiceSelectionParams(language_code=voice_lang,name=voice_type)
+                        audio_config = texttospeech.types.AudioConfig(audio_encoding=texttospeech.enums.AudioEncoding.MP3)
+                        response = voice_client.synthesize_speech(voice_input, voice, audio_config)
+                        # The response's audio_content is binary.
+                        with open('output.mp3', 'wb') as out:
+                            out.write(response.audio_content)
+                            print('Audio content written to file "output.mp3"')
+                        has_voice=True
+                    output = u"{}'s message in {} is {}".format(person.displayName, fullTarget, output)
+
                 else:
                     output = "Sorry, the sentence was not recognised as a language"
             print(output)
-            
-            teams_api.messages.create(room.id, text=(person.displayName + "'s message in " + target + "is " + output))
+            teams_api.messages.create(room.id, text=output)
+            if has_voice:
+                #Attach the voice file
+                teams_api.messages.create(room.id, text="Language is compatible, play file for speech output", files=["output.mp3"])
     return 'OK'
 
 
@@ -135,7 +158,7 @@ data = {"name": webhook_name,
         "event": "created", "filter":
         "roomId=Y2lzY29zcGFyazovL3VzL1JPT00vODNlNDAzOTAtMjE2Ni0xMWU5LWJmNTYtYTlhY2I2NTU0Y2Ji"}
 
-hdr = {"Authorization": "Bearer MmViOWRjNDMtZDM4MC00OWQ4LWE3ZGQtNDExZDQ2NjA0YjU4Zjc5MTU3NDYtMGM3_PF84_consumer"}
+hdr = {"Authorization": "Bearer YmQ1OTY0MDgtNmE1My00NzA2LWI2MDEtNWNjNjYxNDU3M2M4OWRiM2ExM2MtZjg2_PF84_consumer"}
 
 print(data)
 
