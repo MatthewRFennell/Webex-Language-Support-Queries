@@ -16,6 +16,7 @@ import re
 import readwolfram
 from summa import summarizer
 from pprint import pprint
+from sets import Set
 
 # Instantiates google API clients
 translate_client = translate.Client()
@@ -35,6 +36,15 @@ wolframConvos = {}
 # Create the webook API data
 teams_api = WebexTeamsAPI(access_token="MjA0NTMyNTMtYzM2NS00NmVhLTkzNjQtNGE0ZjNmY2MxZWVkZWMwMjJlMDMtODZm_PF84_consumer")
 flask_app = Flask(__name__)
+
+def shouldSend(msg):
+    return not ("Default language" in msg or "Language is compatible" in msg or "set to" in msg or "play file for speech output" in msg or "!" in msg or "The following words are now not translated" in msg or "Language set to" in msg or "the sentence was not recognised as a language" in msg or "Sorry, could not recognise the language of" in msg or "is now following" in msg or "html" in msg)
+
+def stringInOurList(string, list):
+    for s in list:
+        if string == s:
+            return True
+    return False
 
 @flask_app.route('/teamswebhook', methods=['POST'])
 def teamsWebHook():
@@ -152,15 +162,15 @@ def teamsWebHook():
                 msgs = list(teams_api.messages.list(room.id))
                 string = []
                 for msg in msgs:
-                    if type(msg.text) is unicode:
+                    pprint(vars(msg))
+                    botId = "Y2lzY29zcGFyazovL3VzL1BFT1BMRS8xZWVjYmVkMS1mZTNmLTQ1MDctOTk0Yy1mNGEyOThmYzZlYWM"
+                    if type(msg.text) is unicode and msg.personId != botId and shouldSend(msg.text) and not stringInOurList(msg.text, string):
                         string.append(msg.text)
-                stringstring = '\n'.join(string)
-                text = summarizer.summarize(stringstring, ratio=0.02)
-                text = summarizer.summarize(stringstring, ratio=0.02)
-                text = summarizer.summarize(stringstring, ratio=0.02)
+                stringstring = '\n'.join(Set(string))
+                print(Set(string))
+                print(stringstring)
                 text = summarizer.summarize(stringstring, ratio=0.02)
                 teams_api.messages.create(room.id, text=text)
-                print(text)
             else:
                 #Translate normally
                 result = translate_client.detect_language(text)
@@ -266,7 +276,7 @@ def teamsWebHook():
                             output = regex.sub("\\1", output)
                         # Write to user here
                         output = u"{}'s message from {} in {} is {}".format(person.displayName, room.title, fullTarget, output)
-                        teams_api.messages.create(toPersonId=key, text=output)
+                        teams_api.messages.create(toPersonId=key, text="YEET" + output)
                         print("Message should be sent here")
                         if roomVoices[room.id] and get_voice_of(target):
                             #Get the voice file
