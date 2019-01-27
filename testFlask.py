@@ -178,15 +178,17 @@ def teamsWebHook():
                 msgs = list(teams_api.messages.list(room.id))
                 string = []
                 for msg in msgs:
-                    pprint(vars(msg))
                     botId = "Y2lzY29zcGFyazovL3VzL1BFT1BMRS8xZWVjYmVkMS1mZTNmLTQ1MDctOTk0Yy1mNGEyOThmYzZlYWM"
                     if type(msg.text) is unicode and msg.personId != botId and shouldSend(msg.text) and not stringInOurList(msg.text, string):
+                        #pprint(vars(msg))
                         string.append(msg.text)
                 stringstring = '\n'.join(Set(string))
                 print(Set(string))
-                print(stringstring)
-                text = summarizer.summarize(stringstring, ratio=0.02)
-                teams_api.messages.create(room.id, text=text)
+                #print(stringstring)
+                print("SUMMARIZER BELOW")
+                text = summarizer.summarize(stringstring, ratio=0.20)
+                teams_api.messages.create(room.id, text=u"The following is a suggested summarization of 20% of the chat content:\n{}".format(text))
+                print(text)
             else:
                 #Translate normally
                 result = translate_client.detect_language(text)
