@@ -14,22 +14,28 @@ from helpers.spark_helper import (find_webhook_by_name,
                      delete_webhook, create_webhook)
 import re
 
-# Instantiates a client
+# Instantiates google API clients
 translate_client = translate.Client()
 voice_client = texttospeech.TextToSpeechClient()
-noTranslate=[]
-target='en'
-fullTarget='English'
-teams_api = WebexTeamsAPI(access_token="MmViOWRjNDMtZDM4MC00OWQ4LWE3ZGQtNDExZDQ2NjA0YjU4Zjc5MTU3NDYtMGM3_PF84_consumer")
+
+#Initialise empty directories of people to custom languages
+roomFollows = {}
+
+# Initialise empty dictionary of room id to language
+roomLanguages = {}
+# Room id to words to not be translated
+roomFilters = {}
+
+# Create the webook API data
+teams_api = WebexTeamsAPI(access_token="YmQ1OTY0MDgtNmE1My00NzA2LWI2MDEtNWNjNjYxNDU3M2M4OWRiM2ExM2MtZjg2_PF84_consumer")
 flask_app = Flask(__name__)
 
 @flask_app.route('/teamswebhook', methods=['POST'])
 def teamsWebHook():
-    global target
-    global fullTarget
-    global noTranslate
+    global roomFollows
+    global roomLanguages
+    global roomFilters
     format="text"
-    print("Got a request")
     json_data = request.json
 
     # Pass the JSON data so that it can get parsed by the Webhook class
@@ -41,62 +47,102 @@ def teamsWebHook():
     message = teams_api.messages.get(webhook_obj.data.id)
     person = teams_api.people.get(message.personId)
     email = person.emails[0]
+    group = room.type == "group"
 
+    if room.id not in roomLanguages:
+        roomLanguages[room.id] = ["en", "English"]
+        roomFilters[room.id] = []
+        roomFollows[room.id] = {}
+
+    has_translation = False
     has_voice = False
+    new_follow = False
     text = message.text
     if text:
         # Message was sent by the bot, do not respond.
         # At the moment there is no way to filter this out, there will be in the future
         me = teams_api.people.me()
-        print(me.id)
-        print(message.personId)
+        print("Message sent by {} of type {} from room {}.\n Content is {}".format(person.displayName, room.type, room.id, text))
         if message.personId == me.id:
             return 'OK'
         else:
             #Start the translation process
             ascii = text.encode('ascii', 'ignore')
             lower = ascii.lower()
-
+            output = ""
             if lower.startswith("!setlanguage"):
                 #Attempt to set the language
                 newLang = ascii.split()
                 if len(newLang) > 1:
                     confidence, detectedLang, shortcode = get_shortcode_of(newLang[1])
                     if confidence == 100:
-                        target = shortcode
-                        fullTarget = detectedLang
+                        roomLanguages[room.id] = [shortcode, detectedLang]
                         output = "Language set to {}".format(newLang[1])
-                        print(output)
                     elif confidence > 70:
-                        target = shortcode
-                        fullTarget = detectedLang
+                        roomLanguages[room.id] = [shortcode, detectedLang]
                         output = "Language set to {} (Auto-recognised with confidence level {})".format(detectedLang, confidence)
-                        print(output)
                     else:
                         output = "We did not understand {}, did you mean {}?".format(newLang[1], detectedLang)
-                        print(output)
+                else:
+                    output = "No language was provided for !setlanguage"
             elif lower.startswith("!notranslate"):
                 #Add word to ignored list
                 words = ""
                 for word in lower.split():
                     if word != "!notranslate" and word not in noTranslate:
-                        noTranslate.append(word)
-                output = "The following words are now not translated: {}".format(noTranslate)
+                        roomFilters[room.id].append(word)
+                output = "The following words are now not translated: {}".format(roomFilters[room.id])
             elif lower.startswith("!dotranslate"):
                 words = ""
                 for word in lower.split():
-                    if word != "!notranslate" and word in noTranslate:
-                        noTranslate.remove(word)
-                output = "The following words are now not translated: {}".format(noTranslate)
+                    if word != "!notranslate" and word in roomFilters[room.id]:
+                        roomFilters[room.id].remove(word)
+                output = "The following words are now not translated: {}".format(roomFilters[room.id])
+            elif lower.startswith("!help"):
+                output = "The following commands are valid:\n"
+                output += "!help - List this help command\n"
+                output += "!notranslate word1 word2 .. - Do not translate these words\n"
+                output += "!dotranslate word1 word2 .. - Remove these words from the no translate list\n"
+                output += "!setlanguage language - Set the translation target to the language. Minor spelling errors are corrected automatically\n"
+                output += "!follow language - Follow a group chat in a specific language (excludes your messages)."
+            elif lower.startswith("!follow"):
+                if not group:
+                    output = "You cannot follow a direct chat!"
+                else:
+                    newLang = ascii.split()
+                    if len(newLang) > 1:
+                        confidence, detectedLang, shortcode = get_shortcode_of(newLang[1])
+                        if confidence == 100:
+                            roomFollows[room.id][message.personId] = [shortcode, detectedLang]
+                            output = "{} is now following {} in {}".format(person.displayName, room.title,newLang[1])
+                            new_follow = True
+                        elif confidence > 70:
+                            roomFollows[room.id][message.personId] = [shortcode, detectedLang]
+                            output = "{} is now following {} in {} (Auto-recognised with confidence level {})".format(person.displayName, room.title,newLang[1], confidence)
+                            new_follow = True
+                        else:
+                            output = "We did not understand {}, did you mean {}?".format(newLang[1], detectedLang)
+                        print(output + " in room " + room.title)
+                        print(roomFollows[room.id])
+                    else:
+                        output = "No language was provided for !follow"
             else:
                 #Translate normally
                 result = translate_client.detect_language(text)
                 language = result['language']
-                if language != target and language != "und" and result['confidence'] > 0.7:
+                target = roomLanguages[room.id][0]
+                fullTarget = roomLanguages[room.id][1]
+                print(language)
+                print("Confidence {}".format(result['confidence']))
+                if language != "und" and result['confidence'] > 0.7:
+                    has_translation = True
+                else:
+                    output = "Sorry, could not recognise the language of {} with enough certainty. Maybe it is too short?".format(text)
+                if language != target and has_translation:
                     print(u"Language of {} detected as {} with confidence {}".format(text, result['language'], result['confidence']))
                     input = ""
                     for word in text.split():
-                        if word.lower() in noTranslate:
+                        if word.lower() in roomFilters[room.id]:
                             input += "<span translate=\"no\">"+word+"</span> "
                             format="html"
                         else:
@@ -115,17 +161,48 @@ def teamsWebHook():
                         # The response's audio_content is binary.
                         with open('output.mp3', 'wb') as out:
                             out.write(response.audio_content)
-                            print('Audio content written to file "output.mp3"')
                         has_voice=True
-                    output = u"{}'s message in {} is {}".format(person.displayName, fullTarget, output)
-
-                else:
-                    output = "Sorry, the sentence was not recognised as a language"
+                    output = u"{}'s message in {} is {}".format(person.displayName, fullTarget, output) 
             print(output)
-            teams_api.messages.create(room.id, text=output)
+            if output != "":
+                teams_api.messages.create(room.id, text=output)
             if has_voice:
                 #Attach the voice file
                 teams_api.messages.create(room.id, text="Language is compatible, play file for speech output", files=["output.mp3"])
+            if has_translation:
+            # Now notify the followers
+                print(roomFollows[room.id])
+                for key, value in roomFollows[room.id].iteritems():
+                    format = "text"
+                    if language != value[0] and message.personId != key:
+                        target = value[0]
+                        input = ""
+                        for word in text.split():
+                            if word.lower() in roomFilters[room.id]:
+                                input += "<span translate=\"no\">"+word+"</span> "
+                                format="html"
+                            else:
+                                input += word + " "
+                        output = translate_client.translate(input, target, format_=format)['translatedText']
+                        if format == "html":
+                            regex = re.compile("<span translate ?= ?\"no\"> ?(\w+) ?<\/ ?span>")
+                            output = regex.sub("\\1", output)
+                        # Write to user here
+                        output = u"{}'s message from {} in {} is {}".format(person.displayName, room.title, fullTarget, output)
+                        teams_api.messages.create(toPersonId=key, text=output)
+                        print("Message should be sent here")
+                        if get_voice_of(target):
+                            #Get the voice file
+                            voice_lang, voice_type, voice_gender = get_voice_of(target)
+                            voice_input = texttospeech.types.SynthesisInput(text=output)
+                            voice = texttospeech.types.VoiceSelectionParams(language_code=voice_lang,name=voice_type)
+                            audio_config = texttospeech.types.AudioConfig(audio_encoding=texttospeech.enums.AudioEncoding.MP3)
+                            response = voice_client.synthesize_speech(voice_input, voice, audio_config)
+                            # The response's audio_content is binary.
+                            with open('output.mp3', 'wb') as out:
+                                out.write(response.audio_content)
+                            #Attach the voice file
+                            teams_api.messages.create(toPersonId=key, text="Language is compatible, play file for speech output", files=["output.mp3"])                            
     return 'OK'
 
 
@@ -155,8 +232,8 @@ if dev_webhook:
 data = {"name": webhook_name,
         "targetUrl": url + "/teamswebhook",
         "resource": "messages",
-        "event": "created", "filter":
-        "roomId=Y2lzY29zcGFyazovL3VzL1JPT00vODNlNDAzOTAtMjE2Ni0xMWU5LWJmNTYtYTlhY2I2NTU0Y2Ji"}
+        "event": "created"}
+#        "filter": "roomId=Y2lzY29zcGFyazovL3VzL1JPT00vODNlNDAzOTAtMjE2Ni0xMWU5LWJmNTYtYTlhY2I2NTU0Y2Ji"}
 
 hdr = {"Authorization": "Bearer YmQ1OTY0MDgtNmE1My00NzA2LWI2MDEtNWNjNjYxNDU3M2M4OWRiM2ExM2MtZjg2_PF84_consumer"}
 
@@ -169,5 +246,5 @@ if r.status_code != 200:
     print("Failed to create webhook")
     quit()
 
-teams_api.messages.create("Y2lzY29zcGFyazovL3VzL1JPT00vODNlNDAzOTAtMjE2Ni0xMWU5LWJmNTYtYTlhY2I2NTU0Y2Ji", text="Started up translating bot. Default language: English")
+#teams_api.messages.create("Y2lzY29zcGFyazovL3VzL1JPT00vODNlNDAzOTAtMjE2Ni0xMWU5LWJmNTYtYTlhY2I2NTU0Y2Ji", text="Started up translating bot. Default language: English")
 flask_app.run(host='0.0.0.0', port=5005)
