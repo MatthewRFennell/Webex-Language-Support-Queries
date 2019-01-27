@@ -170,8 +170,13 @@ def teamsWebHook():
                 for msg in msgs:
                     if type(msg.text) is unicode:
                         string.append(msg.text)
-                stringstring = ''.join(string)
-                print(summarizer.summarize(stringstring, words=50))
+                stringstring = '\n'.join(string)
+                text = summarizer.summarize(stringstring, ratio=0.02)
+                text = summarizer.summarize(stringstring, ratio=0.02)
+                text = summarizer.summarize(stringstring, ratio=0.02)
+                text = summarizer.summarize(stringstring, ratio=0.02)
+                teams_api.messages.create(room.id, text=text)
+                print(text)
             else:
                 #Translate normally
                 result = translate_client.detect_language(text)
