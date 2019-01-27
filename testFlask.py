@@ -191,11 +191,15 @@ def teamsWebHook():
                         has_result = True
                 print(wolfram_result)
                 if has_result:
-                    teams_api.messages.create(room.id, text="Wolfram Alpha suggests the following:\n{}".format(wolframConvos[message.personId]["result"]))
+                    if attempt_again:
+                        back_translated = translate_client.translate(wolframConvos[message.personId]["result"], language, format_="text")['translatedText']
+                        teams_api.messages.create(room.id, text=u"Wolfram Alpha suggests the following:\n{}\nOriginal:({})".format( back_translated, wolframConvos[message.personId]["result"]))
+                    else:
+                        teams_api.messages.create(room.id, text=u"Wolfram Alpha suggests the following:\n{}".format(wolframConvos[message.personId]["result"]))
                 if language != "und" and result['confidence'] > 0.7:
                     has_translation = True
                 elif not has_result:
-                    output = "Sorry, could not recognise the language of {} with enough certainty. Maybe it is too short?".format(text)
+                    output = u"Sorry, could not recognise the language of {} with enough certainty. Maybe it is too short?".format(text)
                 if language != target and has_translation:
                     print(u"Language of {} detected as {} with confidence {}".format(text, result['language'], result['confidence']))
                     input = ""
