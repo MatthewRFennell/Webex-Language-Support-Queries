@@ -40,6 +40,7 @@ def teamsWebHook():
     global roomLanguages
     global roomFilters
     global roomVoices
+    global convoId
     format="text"
     json_data = request.json
 
@@ -148,14 +149,13 @@ def teamsWebHook():
                     output = "Voice attachments are disabled for this room"
             else:
                 # Try and submit the query to wolfram alpha
-         	result = ""
-                global convoId
-         	if convoId == "":
-         		convoId, result = readwolfram.ask(text)
-         	else:
-                        print(convoId)
-                        print(text)
-         		convoId, result = readwolfram.askContinuingConvo(convoId, text)
+                result = ""
+                if convoId == "":
+                    convoId, result = readwolfram.ask(text)
+                else:
+                    print(convoId)
+                    print(text)
+                    convoId, result = readwolfram.askContinuingConvo(convoId, text)
                 print(result)
                 #Translate normally
                 result = translate_client.detect_language(text)
