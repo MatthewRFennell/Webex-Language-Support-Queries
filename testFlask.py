@@ -25,6 +25,7 @@ roomFollows = {}
 roomLanguages = {}
 # Room id to words to not be translated
 roomFilters = {}
+roomVoices = {}
 
 # Create the webook API data
 teams_api = WebexTeamsAPI(access_token="YmQ1OTY0MDgtNmE1My00NzA2LWI2MDEtNWNjNjYxNDU3M2M4OWRiM2ExM2MtZjg2_PF84_consumer")
@@ -35,6 +36,7 @@ def teamsWebHook():
     global roomFollows
     global roomLanguages
     global roomFilters
+    global roomVoices
     format="text"
     json_data = request.json
 
@@ -53,6 +55,7 @@ def teamsWebHook():
         roomLanguages[room.id] = ["en", "English"]
         roomFilters[room.id] = []
         roomFollows[room.id] = {}
+        roomVoices[room.id] = True
 
     has_translation = False
     has_voice = False
@@ -104,7 +107,9 @@ def teamsWebHook():
                 output += "!notranslate word1 word2 .. - Do not translate these words\n"
                 output += "!dotranslate word1 word2 .. - Remove these words from the no translate list\n"
                 output += "!setlanguage language - Set the translation target to the language. Minor spelling errors are corrected automatically\n"
-                output += "!follow language - Follow a group chat in a specific language (excludes your messages)."
+                output += "!follow language - Follow a group chat in a specific language (excludes your messages).\n"
+                output += "!voice - Allow attaching of voice pronounciation for supported languages.\n"
+                output += "!novoice - Disable attaching of voice pronounciation for supported languages."
             elif lower.startswith("!follow"):
                 if not group:
                     output = "You cannot follow a direct chat!"
@@ -126,6 +131,18 @@ def teamsWebHook():
                         print(roomFollows[room.id])
                     else:
                         output = "No language was provided for !follow"
+            elif lower.startswith("!voice"):
+                if roomVoices[room.id]:
+                    output = "Voice attachments are already enabled!"
+                else:
+                    roomVoices[room.id] = True
+                    output = "Voice attachments are enabled for supported languages."
+            elif lower.startswith("!novoice"):
+                if not roomVoices[room.id]:
+                    output = "Voice attachments are already disabled!"
+                else:
+                    roomVoices[room.id] = False
+                    output = "Voice attachments are disabled for this room"
             else:
                 #Translate normally
                 result = translate_client.detect_language(text)
@@ -151,7 +168,7 @@ def teamsWebHook():
                     if format == "html":
                         regex = re.compile("<span translate ?= ?\"no\"> ?(\w+) ?<\/ ?span>")
                         output = regex.sub("\\1", output)
-                    if get_voice_of(target):
+                    if roomVoices[room.id] and get_voice_of(target):
                         #Get the voice file
                         voice_lang, voice_type, voice_gender = get_voice_of(target)
                         voice_input = texttospeech.types.SynthesisInput(text=output)
@@ -191,7 +208,7 @@ def teamsWebHook():
                         output = u"{}'s message from {} in {} is {}".format(person.displayName, room.title, fullTarget, output)
                         teams_api.messages.create(toPersonId=key, text=output)
                         print("Message should be sent here")
-                        if get_voice_of(target):
+                        if roomVoices[room.id] and get_voice_of(target):
                             #Get the voice file
                             voice_lang, voice_type, voice_gender = get_voice_of(target)
                             voice_input = texttospeech.types.SynthesisInput(text=output)
