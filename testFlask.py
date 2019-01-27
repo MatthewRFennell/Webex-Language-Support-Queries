@@ -33,7 +33,7 @@ roomVoices = {}
 wolframConvos = {}
 
 # Create the webook API data
-teams_api = WebexTeamsAPI(access_token="OWVjZmQ1NTYtN2FjYy00YWQ2LTkyYmMtZmUxZjc5ZDBkZDRiZjA1ZDU2MDEtMWY5_PF84_consumer")
+teams_api = WebexTeamsAPI(access_token="MjA0NTMyNTMtYzM2NS00NmVhLTkzNjQtNGE0ZjNmY2MxZWVkZWMwMjJlMDMtODZm_PF84_consumer")
 flask_app = Flask(__name__)
 
 @flask_app.route('/teamswebhook', methods=['POST'])
@@ -307,7 +307,7 @@ data = {"name": webhook_name,
         "event": "created"}
 #        "filter": "roomId=Y2lzY29zcGFyazovL3VzL1JPT00vODNlNDAzOTAtMjE2Ni0xMWU5LWJmNTYtYTlhY2I2NTU0Y2Ji"}
 
-hdr = {"Authorization": "Bearer OWVjZmQ1NTYtN2FjYy00YWQ2LTkyYmMtZmUxZjc5ZDBkZDRiZjA1ZDU2MDEtMWY5_PF84_consumer"}
+hdr = {"Authorization": "Bearer MjA0NTMyNTMtYzM2NS00NmVhLTkzNjQtNGE0ZjNmY2MxZWVkZWMwMjJlMDMtODZm_PF84_consumer"}
 
 print(data)
 
