@@ -154,8 +154,13 @@ def teamsWebHook():
                 for msg in msgs:
                     if type(msg.text) is unicode:
                         string.append(msg.text)
-                stringstring = ''.join(string)
-                print(summarizer.summarize(stringstring, words=50))
+                stringstring = '\n'.join(string)
+                text = summarizer.summarize(stringstring, ratio=0.02)
+                text = summarizer.summarize(stringstring, ratio=0.02)
+                text = summarizer.summarize(stringstring, ratio=0.02)
+                text = summarizer.summarize(stringstring, ratio=0.02)
+                teams_api.messages.create(room.id, text=text)
+                print(text)
             else:
                 #Translate normally
                 result = translate_client.detect_language(text)
@@ -205,7 +210,7 @@ def teamsWebHook():
                         back_translated = translate_client.translate(wolframConvos[message.personId]["result"], language, format_="text")['translatedText']
                         teams_api.messages.create(room.id, text=u"Wolfram Alpha suggests the following:\n{}\nOriginal:({})".format( back_translated, wolframConvos[message.personId]["result"]))
                     else:
-                        teams_api.messages.create(room.id, text=u"Wolfram Alpha suggests the following:\n{}".format(wolframConvos[message.personId]["result"]))
+                        teams_api.messages.create(room.id, text=u"{}".format(wolframConvos[message.personId]["result"]))
                 if language != "und" and result['confidence'] > 0.7:
                     has_translation = True
                 elif not has_result:
