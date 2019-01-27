@@ -14,6 +14,8 @@ from helpers.spark_helper import (find_webhook_by_name,
                      delete_webhook, create_webhook)
 import re
 import readwolfram
+from summa import summarizer
+from pprint import pprint
 
 # Instantiates google API clients
 translate_client = translate.Client()
@@ -146,6 +148,14 @@ def teamsWebHook():
                 else:
                     roomVoices[room.id] = False
                     output = "Voice attachments are disabled for this room"
+            elif lower.startswith("!summarize"):
+                msgs = list(teams_api.messages.list(room.id))
+                string = []
+                for msg in msgs:
+                    if type(msg.text) is unicode:
+                        string.append(msg.text)
+                stringstring = ''.join(string)
+                print(summarizer.summarize(stringstring, words=50))
             else:
                 #Translate normally
                 result = translate_client.detect_language(text)
